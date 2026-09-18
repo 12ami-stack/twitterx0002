@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X（旧Twitter）485万表示の裏側シミュレーター（サイズ切替版）</title>
+    <style>
+        /* デフォルトは1倍(1rem / 16px相当)。bodyにクラスを付与して切り替える */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #0f1419; color: #fff; margin: 0; padding: 25px; display: flex; flex-direction: column; align-items: center; font-size: 1rem; transition: font-size 0.2s ease; }
+        body.zoom-125 { font-size: 1.25rem; } /* 1.25倍用クラス */
+        
+        .info-panel { background-color: #1e2732; border-radius: 20px; padding: 25px; max-width: 750px; width: 100%; margin-bottom: 30px; box-sizing: border-box; border: 1px solid #38444d; }
+        /* タイトルやコントロール周りも相対単位(em)で連動拡大 */
+        .info-panel h2 { margin-top: 0; color: #1d9bf0; font-size: 1.2rem; }
+        body.zoom-125 .info-panel h2 { font-size: 1.5rem; }
+        .info-panel p { font-size: 0.9rem; color: #8899a6; line-height: 1.6; }
+        body.zoom-125 .info-panel p { font-size: 1.1rem; }
+        
+        /* 開始ボタンのスタイル */
+        .control-btn { background-color: #1d9bf0; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; font-size: 0.9rem; margin-top: 12px; }
+        body.zoom-125 .control-btn { font-size: 1.1rem; padding: 12px 24px; }
+        .control-btn:hover { background-color: #1a8cd8; }
+
+        /* 画面右下に小さく固定配置するサイズ切替ボタンのグループ */
+        .floating-size-group {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: rgba(30, 39, 50, 0.9);
+            border: 1px solid #38444d;
+            padding: 8px;
+            border-radius: 12px;
+            display: flex;
+            gap: 6px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+        .size-btn {
+            background-color: #38444d;
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background-color 0.2s;
+        }
+        body.zoom-125 .size-btn { font-size: 0.85rem; padding: 8px 14px; }
+        .size-btn:hover { background-color: #536471; }
+        .size-btn.active { background-color: #ffffff; color: #000; }
+
+        .x-post { background-color: #000000; border: 1px solid #2f3336; border-radius: 20px; padding: 20px; max-width: 750px; width: 100%; box-sizing: border-box; }
+        .profile { display: flex; align-items: center; margin-bottom: 15px; }
+        .avatar { width: 45px; height: 45px; background-color: #e91e63; border-radius: 50%; margin-right: 15px; }
+        body.zoom-125 .avatar { width: 50px; height: 50px; }
+        .user-info { line-height: 1.3; }
+        .display-name { font-weight: bold; font-size: 0.95rem; }
+        body.zoom-125 .display-name { font-size: 1.15rem; }
+        .username { color: #71767b; font-size: 0.95rem; }
+        body.zoom-125 .username { font-size: 1.15rem; }
+        .post-text { font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px; }
+        body.zoom-125 .post-text { font-size: 1.15rem; }
+        .hashtag { color: #1d9bf0; }
+        
+        .analytics-box { border-top: 1px solid #2f3336; border-bottom: 1px solid #2f3336; padding: 15px 0; margin-bottom: 20px; display: flex; justify-content: space-around; font-size: 0.9rem; }
+        body.zoom-125 .analytics-box { font-size: 1.1rem; }
+        .metric { text-align: center; }
+        .metric-num { font-weight: bold; color: #e7e9ea; display: block; font-size: 1.05rem; }
+        body.zoom-125 .metric-num { font-size: 1.3rem; }
+        .metric-label { color: #71767b; font-size: 0.8rem; }
+        body.zoom-125 .metric-label { font-size: 0.95rem; }
+        .highlight-view { color: #00ba7c; font-weight: bold; }
+        
+        .bot-log-title { font-size: 0.8rem; color: #f43f5e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; }
+        body.zoom-125 .bot-log-title { font-size: 0.95rem; }
+        .bot-log-title::before { content: "●"; margin-right: 6px; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+        .bot-logs { background-color: #15181c; border: 1px solid #2f3336; border-radius: 10px; padding: 12px; height: 150px; overflow-y: hidden; font-family: monospace; font-size: 0.75rem; color: #00ff66; line-height: 1.5; margin-bottom: 25px; }
+        body.zoom-125 .bot-logs { font-size: 0.85rem; }
+        
+        .reply-section-title { border-top: 1px solid #2f3336; padding-top: 15px; font-size: 0.9rem; color: #e7e9ea; font-weight: bold; margin-bottom: 15px; }
+        body.zoom-125 .reply-section-title { font-size: 1.1rem; }
+        .reply-container { display: flex; flex-direction: column; gap: 15px; max-height: 400px; overflow-y: hidden; }
+        .reply-item { display: flex; border-bottom: 1px solid #16181c; padding-bottom: 12px; animation: slideDown 0.3s ease-out; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .reply-avatar { width: 35px; height: 35px; border-radius: 50%; margin-right: 12px; flex-shrink: 0; }
+        body.zoom-125 .reply-avatar { width: 40px; height: 40px; }
+        .reply-content { display: flex; flex-direction: column; }
+        .reply-user-info { font-size: 0.8rem; margin-bottom: 4px; }
+        body.zoom-125 .reply-user-info { font-size: 0.95rem; }
+        .reply-name { font-weight: bold; color: #fff; margin-right: 5px; }
+        .reply-handle { color: #71767b; }
+        .reply-text { font-size: 0.9rem; color: #e7e9ea; background-color: rgba(29, 155, 240, 0.05); padding: 6px 12px; border-radius: 8px; border: 1px dashed rgba(29, 155, 240, 0.2); }
+        body.zoom-125 .reply-text { font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+
+    <!-- 画面右下に小さく配置されたサイズ切替ボタン -->
+    <div class="floating-size-group">
+        <button class="size-btn active" id="btn100">1倍</button>
+        <button class="size-btn" id="btn125">1.25倍</button>
+    </div>
+
+    <div class="info-panel">
+        <h2>⚠️ 「本物の485万表示」に潜むインチキのカラクリ</h2>
+        <p>ボタンを押すとインチキシステムが起動します。表示数の爆増ログと、アルゴリズムをハックするためだけに群がる「絵文字だけのゾンビリプライ」が自動生成される様子を確認できます[cite: 2]。</p>
+        <button class="control-btn" id="startSim">自動水増し（インチキ）を開始</button>
+    </div>
+
+    <div class="x-post">
+        <div class="profile">
+            <div class="avatar"></div>
+            <div class="user-info"><div class="display-name">インプゾンビ亜種（自動運用）</div><div class="username">@bot_zombie_99</div></div>
+        </div>
+        
+        <div class="post-text">【悲報】今日のニュースすごすぎるｗｗｗｗｗ <span class="hashtag">#地震のせい</span> <span class="hashtag">#アニメ最高</span> <span class="hashtag">#日本のトレンド</span> <span class="hashtag">#緊急会見</span> （※海外のトレンドワードや無関係なバズ画像を自動コピペしてインプレッションを掠め取る手法）</div>
+
+        <div class="analytics-box">
+            <div class="metric"><span class="metric-num highlight-view" id="viewCount">4,850,000</span><span class="metric-label">表示回数</span></div>
+            <div class="metric"><span class="metric-num" id="replyCount">12</span><span class="metric-label">返信</span></div>
+            <div class="metric"><span class="metric-num" id="likeCount">34</span><span class="metric-label">いいね</span></div>
+        </div>
+
+        <div>
+            <div class="bot-log-title">自動インプレッション増殖システムの内部ログ</div>
+            <div class="bot-logs" id="logBox">[システム] スタンバイ中... ボタンを押すとインチキの稼働状況を表示します。</div>
+        </div>
+
+        <div class="reply-section-title">返信（インプ稼ぎBotネットワークによる自動リプ）</div>
+        <div class="reply-container" id="replyBox">
+            <div class="reply-item">
+                <div class="reply-avatar" style="background-color: #4caf50;"></div>
+                <div class="reply-content">
+                    <div class="reply-user-info"><span class="reply-name">BotA</span><span class="reply-handle">@zombie_a</span></div>
+                    <div class="reply-text">😭😭😭👍🔥</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('startSim'); 
+        const viewCountEl = document.getElementById('viewCount'); 
+        const replyCountEl = document.getElementById('replyCount'); 
+        const likeCountEl = document.getElementById('likeCount'); 
+        const logBox = document.getElementById('logBox'); 
+        const replyBox = document.getElementById('replyBox');
+        const btn100 = document.getElementById('btn100'); 
+        const btn125 = document.getElementById('btn125');
+        
+        let isRunning = false; 
+        let views = 4850000; 
+        let replies = 12; 
+        let likes = 34;
+
+        // 文字サイズ切替ロジック
+        btn100.addEventListener('click', () => { 
+            document.body.classList.remove('zoom-125'); 
+            btn100.classList.add('active'); 
+            btn125.classList.remove('active'); 
+        });
+        
+        btn125.addEventListener('click', () => { 
+            document.body.classList.add('zoom-125'); 
+            btn125.classList.add('active'); 
+            btn100.classList.remove('active'); 
+        });
+
+        const logTemplates = [
+            "⚠️ トレンドタグから一般ユーザーの検索画面に強制表示を発生（+8,000インプ）", 
+            "🤖 相互拡散ネットワーク：提携Bot500台の自動巡回ソフトがポストを連続読み込み（+12,000インプ）", 
+            "💬 自動リプライ命令：インプ稼ぎグループへ絵文字爆撃をシグナル送信", 
+            "📈 閲覧用自動巡回スクリプト（API経由）により、表示回数を不自然に蓄積中"
+        ];
+        
+        const zombieNames = ["インプ稼ぎマン", "互助会Bot", "Crypto_Spam", "自動返信ツール", "XYZ_ZOMBIE", "Trend_Follower"]; 
+        const zombieEmojis = ["😂😂😂❤️❤️", "🔥🔥🔥🔥", "Amazing! 🚀🚀", "😭😭😭🙏🙏", "👀✨", "👇👇👇 (怪しいURLへの誘導を狙う絵文字パターン)"]; 
+        const avatarColors = ["#f44336", "#e91e63", "#9c27b0", "#673ab7", "#3f51b5", "#00bcd4", "#ff9800"];
+
+        startBtn.addEventListener('click', () => {
+            if (isRunning) return; 
+            isRunning = true; 
+            startBtn.textContent = "インチキシステム稼働中..."; 
+            startBtn.style.backgroundColor = "#ff3366";
+            
+            setInterval(() => {
+                views += Math.floor(Math.random() * 45000) + 5000; 
+                viewCountEl.textContent = views.toLocaleString();
+                
+                if(Math.random() > 0.6) { 
+                    replies += 1; 
+                    replyCountEl.textContent = replies; 
+                    createZombieReply(); 
+                }
+                
+                if(Math.random() > 0.75) { 
+                    likes += 1; 
+                    likeCountEl.textContent = likes; 
+                }
+                
+                const randomLog = logTemplates[Math.floor(Math.random() * logTemplates.length)]; 
+                const time = new Date().toLocaleTimeString(); 
+                logBox.innerText = `[${time}] ${randomLog}\n` + logBox.innerText;
+            }, 900);
+        });
+
+        function createZombieReply() {
+            const name = zombieNames[Math.floor(Math.random() * zombieNames.length)]; 
+            const handle = `@zombie_${Math.floor(Math.random() * 900 + 100)}`; 
+            const emoji = zombieEmojis[Math.floor(Math.random() * zombieEmojis.length)]; 
+            const color = avatarColors[Math.floor(Math.random() * avatarColors.length)];
+            
+            const replyItem = document.createElement('div'); 
+            replyItem.className = 'reply-item';
+            
+            replyItem.innerHTML = `<div class="reply-avatar" style="background-color: ${color};"></div><div class="reply-content"><div class="reply-user-info"><span class="reply-name">${name}</span><span class="reply-handle">${handle}</span></div><div class="reply-text">${emoji}</div></div>`;
+            
+            replyBox.insertBefore(replyItem, replyBox.firstChild);
+            
+            if (replyBox.children.length > 6) { 
+                replyBox.removeChild(replyBox.lastChild); 
+            }
+        }
+    </script>
+</body>
+</html>
