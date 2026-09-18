@@ -15,10 +15,12 @@
         .info-panel p { font-size: 0.9rem; color: #8899a6; line-height: 1.6; }
         body.zoom-125 .info-panel p { font-size: 1.1rem; }
         
-        /* 開始ボタンのスタイル */
-        .control-btn { background-color: #1d9bf0; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; font-size: 0.9rem; margin-top: 12px; }
+        /* 開始・停止ボタンのスタイル */
+        .control-btn { background-color: #1d9bf0; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; font-size: 0.9rem; margin-top: 12px; transition: background-color 0.2s; }
         body.zoom-125 .control-btn { font-size: 1.1rem; padding: 12px 24px; }
         .control-btn:hover { background-color: #1a8cd8; }
+        .control-btn.paused { background-color: #f43f5e; } /* 停止中の色 */
+        .control-btn.paused:hover { background-color: #e11d48; }
 
         /* 画面右下に小さく固定配置するサイズ切替ボタンのグループ */
         .floating-size-group {
@@ -105,7 +107,7 @@
 
     <div class="info-panel">
         <h2>⚠️ 「本物の485万表示」に潜むインチキのカラクリ</h2>
-        <p>ボタンを押すとインチキシステムが起動します。表示数の爆増ログと、アルゴリズムをハックするためだけに群がる「絵文字だけのゾンビリプライ」が自動生成される様子を確認できます[cite: 2]。</p>
+        <p>ボタンを押すとインチキシステムが起動します。表示数の爆増ログと、アルゴリズムをハックするためだけに群がる「絵文字だけのゾンビリプライ」が自動生成される様子を確認できます[cite: 2]。もう一度押すと一時停止・再開が可能です。</p>
         <button class="control-btn" id="startSim">自動水増し（インチキ）を開始</button>
     </div>
 
@@ -151,6 +153,7 @@
         const btn125 = document.getElementById('btn125');
         
         let isRunning = false; 
+        let intervalId = null;
         let views = 4850000; 
         let replies = 12; 
         let likes = 34;
@@ -179,31 +182,47 @@
         const zombieEmojis = ["😂😂😂❤️❤️", "🔥🔥🔥🔥", "Amazing! 🚀🚀", "😭😭😭🙏🙏", "👀✨", "👇👇👇 (怪しいURLへの誘導を狙う絵文字パターン)"]; 
         const avatarColors = ["#f44336", "#e91e63", "#9c27b0", "#673ab7", "#3f51b5", "#00bcd4", "#ff9800"];
 
+        // インチキボタンのクリックイベント（開始・停止のトグル）
         startBtn.addEventListener('click', () => {
-            if (isRunning) return; 
-            isRunning = true; 
-            startBtn.textContent = "インチキシステム稼働中..."; 
-            startBtn.style.backgroundColor = "#ff3366";
-            
-            setInterval(() => {
-                views += Math.floor(Math.random() * 45000) + 5000; 
-                viewCountEl.textContent = views.toLocaleString();
+            const time = new Date().toLocaleTimeString();
+
+            if (!isRunning) {
+                // --- 開始 / 再開 ---
+                isRunning = true; 
+                startBtn.textContent = "インチキシステム稼働中... "; 
+                startBtn.classList.add('paused');
                 
-                if(Math.random() > 0.6) { 
-                    replies += 1; 
-                    replyCountEl.textContent = replies; 
-                    createZombieReply(); 
-                }
-                
-                if(Math.random() > 0.75) { 
-                    likes += 1; 
-                    likeCountEl.textContent = likes; 
-                }
-                
-                const randomLog = logTemplates[Math.floor(Math.random() * logTemplates.length)]; 
-                const time = new Date().toLocaleTimeString(); 
-                logBox.innerText = `[${time}] ${randomLog}\n` + logBox.innerText;
-            }, 900);
+                logBox.innerText = `[${time}] [システム] インチキ自動水増しを再開しました。\n` + logBox.innerText;
+
+                intervalId = setInterval(() => {
+                    views += Math.floor(Math.random() * 45000) + 5000; 
+                    viewCountEl.textContent = views.toLocaleString();
+                    
+                    if(Math.random() > 0.6) { 
+                        replies += 1; 
+                        replyCountEl.textContent = replies; 
+                        createZombieReply(); 
+                    }
+                    
+                    if(Math.random() > 0.75) { 
+                        likes += 1; 
+                        likeCountEl.textContent = likes; 
+                    }
+                    
+                    const randomLog = logTemplates[Math.floor(Math.random() * logTemplates.length)]; 
+                    const logTime = new Date().toLocaleTimeString(); 
+                    logBox.innerText = `[${logTime}] ${randomLog}\n` + logBox.innerText;
+                }, 900);
+
+            } else {
+                // --- 停止（一時停止） ---
+                isRunning = false; 
+                clearInterval(intervalId);
+                startBtn.textContent = "自動水増し（インチキ）を再開する"; 
+                startBtn.classList.remove('paused');
+
+                logBox.innerText = `[${time}] [システム] ⚠️ インチキシステムを一時停止しました。\n` + logBox.innerText;
+            }
         });
 
         function createZombieReply() {
